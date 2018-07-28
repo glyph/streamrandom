@@ -1,0 +1,15 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "streamrandom"
+author = "Glyph"
+author-email = "glyph@twistedmatrix.com"
+home-page = "https://github.com/glyph/streamrandom"
+classifiers = ["License :: OSI Approved :: MIT License"]
+requires = [
+    "cryptography",
+    "publication",
+]
+description-file = "README.md"
