@@ -225,6 +225,7 @@ def stream_from_seed(seed, version=1):
     if version != 1:
         raise NotImplementedError("only one version exists")
     seed = normalize("NFKD", seed)
+    seed = seed.encode("utf-8")
     hasher = Hash(SHA256(), backend=default_backend())
     hasher.update(seed)
     return CipherStream(AES(hasher.finalize()[: AES.block_size // 8]))
