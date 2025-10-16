@@ -35,10 +35,11 @@ in a game, might allow some players to cheat.
 MIT license, (C) glyph; if it breaks you can keep both halves.
 """
 
-from __future__ import unicode_literals
+from __future__ import annotations
 
 from random import Random
-from typing import IO, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, TypeVar, Generic, Protocol
 
 if TYPE_CHECKING:
     BPF: int
@@ -50,13 +51,22 @@ from unicodedata import normalize
 from uuid import UUID
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, BlockCipherAlgorithm
+from cryptography.hazmat.primitives.ciphers import BlockCipherAlgorithm, Cipher
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers.modes import CTR
 from cryptography.hazmat.primitives.hashes import SHA256, Hash
 from publication import publish  # type:ignore[import-untyped]
 
-__all__ = ["StreamRandom", "CipherStream", "stream_from_seed"]
+__all__ = [
+    # core API
+    "new",
+    "dumps",
+    "loads",
+    # potentially useful types and functions
+    "StreamRandom",
+    "CipherStream",
+    "stream_from_seed",
+]
 
 __version__ = "2025.10.15"
 
@@ -84,21 +94,30 @@ _offBits = _uint128max ^ _bits(48, 50, 51, 65)
 _onBits = _bits(49, 64)
 
 
-class StreamRandom(Random):
+class SeekableBytesFile(Protocol):
+    """
+    IO[bytes] is a very wide ABC, but Reader[bytes] is too narrow (does not
+    include seek()).  Define our own protocol that stipulates exactly what we
+    need.
+    """
+
+    def seek(self, n: int, whence: int = 0) -> int: ...
+    def tell(self) -> int: ...
+    def read(self, n: int = 1024, /) -> bytes: ...
+
+
+IOType = TypeVar("IOType", bound=SeekableBytesFile)
+
+
+@dataclass
+class StreamRandom(Random, Generic[IOType]):
     """
     A L{StreamRandom} converts a stream of bytes into an object that has the
     same useful methods as a standard library L{random.Random}, plus its own
     C{uuid4} method.
     """
 
-    def __init__(self, stream: IO[bytes]) -> None:
-        """
-        Create a L{StreamRandom}.
-
-        @param stream: A file-like object.
-        """
-        # No super(); skip over the call to .seed() in Random.__init__.
-        self._stream: IO[bytes] = stream
+    _stream: IOType
 
     def getrandbits(self, k: int) -> int:
         """
@@ -144,13 +163,13 @@ class StreamRandom(Random):
         """
         self._stream.seek(n * 7, 1)
 
-    def getstate(self) -> IO[bytes]:  # type:ignore[override]
+    def getstate(self) -> IOType:  # type:ignore[override]
         """
         Get the internal state necessary to serialize this object.
         """
         return self._stream
 
-    def setstate(self, state: IO[bytes]) -> None:  # type:ignore[override]
+    def setstate(self, state: IOType) -> None:  # type:ignore[override]
         """
         Unserialize this object from the given state, previously serialized by
         C{getstate}.
@@ -166,14 +185,17 @@ class StreamRandom(Random):
         return UUID(int=((integer & _offBits) | _onBits))
 
 
-class CipherStream(object):
+CipherType = TypeVar("CipherType", bound=BlockCipherAlgorithm)
+
+
+class CipherStream(Generic[CipherType]):
     """
     A seekable stream of pseudo-random data based on a block cipher in CTR mode
     """
 
     _remaining = b""
 
-    def __init__(self, algorithm: BlockCipherAlgorithm) -> None:
+    def __init__(self, algorithm: CipherType) -> None:
         """
         Create a keystream from an algorithm, and a function returning a mode
         for that algorithm at a given block.
@@ -187,7 +209,7 @@ class CipherStream(object):
         self._null_block = (0).to_bytes(self._octets_per_block, byteorder="big")
         self.seek(0)
 
-    def seek(self, n: int, whence: int = 0) -> None:
+    def seek(self, n: int, whence: int = 0) -> int:
         if whence == 0:
             goal = n
         elif whence == 1:
@@ -204,11 +226,12 @@ class CipherStream(object):
             backend=default_backend(),
         ).encryptor()
         self.read(beyond)
+        return self.tell()
 
     def tell(self) -> int:
         return self._pos
 
-    def read(self, n: int) -> bytes:
+    def read(self, n: int = 1024, /) -> bytes:
         self._pos += n
         result = b""
         remaining = self._remaining
@@ -225,7 +248,7 @@ class CipherStream(object):
         return result
 
 
-def stream_from_seed(seed: str | bytes, version: int = 1) -> CipherStream:
+def stream_from_seed(seed: str | bytes, version: int = 1) -> CipherStream[AES]:
     """
     Create a L{CipherStream}
 
@@ -240,7 +263,60 @@ def stream_from_seed(seed: str | bytes, version: int = 1) -> CipherStream:
         bytes_seed = normalized_seed.encode("utf-8")
     hasher = Hash(SHA256(), backend=default_backend())
     hasher.update(bytes_seed)
-    return CipherStream(AES(hasher.finalize()[: AES.block_size // 8]))
+    result = CipherStream(AES(hasher.finalize()[: AES.block_size // 8]))
+    return result
+
+
+def new(seed: str | bytes, version: int = 1) -> StreamRandom[CipherStream[AES]]:
+    return StreamRandom(stream_from_seed(seed, version))
+
+
+@dataclass(frozen=True)
+class StreamRandomState:
+    _key: bytes
+    _position: int
+    _version: int
+
+    def tostring(self) -> str:
+        return ":".join(
+            [
+                "streamrandom",
+                str(self._version),
+                self._key.hex(),
+                str(self._position),
+            ]
+        )
+
+    @classmethod
+    def fromstring(cls, string: str) -> StreamRandomState:
+        name, encversion, enckey, encpos = string.split(":")
+        if name != "streamrandom":
+            raise ValueError("invalid representation")
+        version = int(encversion)
+        if version != 1:
+            raise ValueError("invalid version")
+        key = bytes.fromhex(enckey)
+        position = int(encpos)
+        return cls(key, position, version)
+
+
+def dumps(random: StreamRandom[CipherStream[AES]]) -> str:
+    """
+    Save the type of StreamRandom created by L{new} to a string for later
+    restoration by L{loads}.
+    """
+    stream = random.getstate()
+    return StreamRandomState(stream._algorithm.key, stream.tell(), 1).tostring()
+
+
+def loads(string: str) -> StreamRandom[CipherStream[AES]]:
+    """
+    Restore the state given by L{dumps}.
+    """
+    state = StreamRandomState.fromstring(string)
+    stream = CipherStream(AES(state._key))
+    stream.seek(state._position)
+    return StreamRandom(stream)
 
 
 publish()
