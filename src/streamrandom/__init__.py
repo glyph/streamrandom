@@ -68,7 +68,7 @@ __all__ = [
     "stream_from_seed",
 ]
 
-__version__ = "2025.10.15"
+__version__ = "2025.10.16"
 
 
 def _bytes_for_bits(bits: int) -> int:
