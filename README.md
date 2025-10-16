@@ -90,10 +90,23 @@ distributions that are interesting, as well as utilities like "shuffle" whose
 applications are self-evident.
 
 However, the Python standard library's seedable random number *implementation*
-doesn't quite fit.  Its PRNG algorithm (Mersenne Twister) is not *quite*
-unpredictable: if you can observe its outputs, you can eventually [derive its
-inputs](https://en.wikipedia.org/wiki/Mersenne_Twister#Alternatives), which, in
-a game, might allow some players to cheat.
+doesn't quite fit.
+
+1. Its PRNG algorithm (Mersenne Twister) is not *quite* unpredictable: if you
+   can observe its outputs, you can eventually [derive its
+   inputs](https://en.wikipedia.org/wiki/Mersenne_Twister#Alternatives), which,
+   in a game, might allow some players to cheat.
+
+2. Its internal state to serialize produces an undocumented, opaque tuple
+   containing about 4 kilobytes worth of integers, which is obnoxiously large
+   to be transmitting around to synchronize related simulations, and documented
+   as “an object capturing the current internal state of the generator”.  This
+   does not provide great guidance for serializing and deserializing it
+   faithfully; its method names of `getstate` and `setstate` imply that it is
+   to be used with Pickle, which is also not a [great
+   way](https://us.pycon.org/2014/schedule/presentation/155/) to communicate
+   sensitive state.  By contrast, `streamrandom`'s serialized form, as you can
+   see above, is quite compact.
 
 The unpredictable, secure alternative in `SystemRandom` cannot be seeded at
 all.
