@@ -37,24 +37,31 @@ MIT license, (C) glyph; if it breaks you can keep both halves.
 
 from __future__ import unicode_literals
 
-from random import Random, BPF, RECIP_BPF
-from uuid import UUID
-from unicodedata import normalize
+from random import Random
+from typing import IO, TYPE_CHECKING
 
-from cryptography.hazmat.primitives.ciphers import Cipher
+if TYPE_CHECKING:
+    BPF: int
+    RECIP_BPF: float
+else:
+    from random import BPF, RECIP_BPF
+
+from unicodedata import normalize
+from uuid import UUID
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, BlockCipherAlgorithm
 from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers.modes import CTR
-from cryptography.hazmat.primitives.hashes import Hash, SHA256
-from cryptography.hazmat.backends import default_backend
-
-from publication import publish
+from cryptography.hazmat.primitives.hashes import SHA256, Hash
+from publication import publish  # type:ignore[import-untyped]
 
 __all__ = ["StreamRandom", "CipherStream", "stream_from_seed"]
 
 __version__ = "2025.10.15"
 
 
-def _bytes_for_bits(bits):
+def _bytes_for_bits(bits: int) -> int:
     """
     How many bytes do I need to read to get the given number of bits of
     entropy?
@@ -66,7 +73,7 @@ def _bytes_for_bits(bits):
 _uint128max = (1 << 128) - 1
 
 
-def _bits(*ns):
+def _bits(*ns: int) -> int:
     r = 0
     for n in ns:
         r |= 1 << (128 - (n + 1))
@@ -77,23 +84,23 @@ _offBits = _uint128max ^ _bits(48, 50, 51, 65)
 _onBits = _bits(49, 64)
 
 
-class StreamRandom(Random, object):
+class StreamRandom(Random):
     """
     A L{StreamRandom} converts a stream of bytes into an object that has the
     same useful methods as a standard library L{random.Random}, plus its own
     C{uuid4} method.
     """
 
-    def __init__(self, stream):
+    def __init__(self, stream: IO[bytes]) -> None:
         """
         Create a L{StreamRandom}.
 
         @param stream: A file-like object.
         """
         # No super(); skip over the call to .seed() in Random.__init__.
-        self._stream = stream
+        self._stream: IO[bytes] = stream
 
-    def getrandbits(self, k):
+    def getrandbits(self, k: int) -> int:
         """
         Get some random bits.  This is the primitive upon which all
         higher-level functions are built.
@@ -112,7 +119,12 @@ class StreamRandom(Random, object):
         x = int.from_bytes(octets, byteorder="big")
         return x >> (octet_count * 8 - k)
 
-    def seed(self, a=None):
+    def seed(  # type:ignore[override]
+        self,
+        a: int | float | str | bytes | bytearray | None = None,
+        version: int = 0,
+        /,
+    ) -> None:
         """
         Create a new stream from the given seed.
         """
@@ -120,32 +132,32 @@ class StreamRandom(Random, object):
             "To re-seed, create a new StreamRandom with a new stream."
         )
 
-    def random(self):
+    def random(self) -> float:
         """
         Get the next random number in the range [0.0, 1.0).
         """
         return self.getrandbits(BPF) * RECIP_BPF
 
-    def jumpahead(self, n):
+    def jumpahead(self, n: int) -> None:
         """
         Jump ahead in the stream as if C{random} had been called C{n} times.
         """
         self._stream.seek(n * 7, 1)
 
-    def getstate(self):
+    def getstate(self) -> IO[bytes]:  # type:ignore[override]
         """
         Get the internal state necessary to serialize this object.
         """
         return self._stream
 
-    def setstate(self, state):
+    def setstate(self, state: IO[bytes]) -> None:  # type:ignore[override]
         """
         Unserialize this object from the given state, previously serialized by
         C{getstate}.
         """
         self._stream = state
 
-    def uuid4(self):
+    def uuid4(self) -> UUID:
         """
         Bonus method!  Generate UUID4s from a deterministic source of
         randomness.
@@ -161,7 +173,7 @@ class CipherStream(object):
 
     _remaining = b""
 
-    def __init__(self, algorithm):
+    def __init__(self, algorithm: BlockCipherAlgorithm) -> None:
         """
         Create a keystream from an algorithm, and a function returning a mode
         for that algorithm at a given block.
@@ -169,12 +181,13 @@ class CipherStream(object):
         @param algorithm: a pyca/cryptography block cipher.  block_size minimum
             of 128 recommended, due to the internal usage of CTR.
         """
+        self._pos = 0
         self._algorithm = algorithm
         self._octets_per_block = self._algorithm.block_size // 8
         self._null_block = (0).to_bytes(self._octets_per_block, byteorder="big")
         self.seek(0)
 
-    def seek(self, n, whence=0):
+    def seek(self, n: int, whence: int = 0) -> None:
         if whence == 0:
             goal = n
         elif whence == 1:
@@ -192,10 +205,10 @@ class CipherStream(object):
         ).encryptor()
         self.read(beyond)
 
-    def tell(self):
+    def tell(self) -> int:
         return self._pos
 
-    def read(self, n):
+    def read(self, n: int) -> bytes:
         self._pos += n
         result = b""
         remaining = self._remaining
@@ -212,19 +225,18 @@ class CipherStream(object):
         return result
 
 
-def stream_from_seed(seed, version=1):
+def stream_from_seed(seed: str, version: int=1) -> CipherStream:
     """
     Create a L{CipherStream}
 
     @param seed: An arbitrary string.
-    @type seed: unicode text
     """
     if version != 1:
         raise NotImplementedError("only one version exists")
-    seed = normalize("NFKD", seed)
-    seed = seed.encode("utf-8")
+    normalized_seed = normalize("NFKD", seed)
+    bytes_seed = normalized_seed.encode("utf-8")
     hasher = Hash(SHA256(), backend=default_backend())
-    hasher.update(seed)
+    hasher.update(bytes_seed)
     return CipherStream(AES(hasher.finalize()[: AES.block_size // 8]))
 
 
