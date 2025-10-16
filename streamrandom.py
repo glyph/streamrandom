@@ -49,7 +49,6 @@ from cryptography.hazmat.primitives.ciphers.algorithms import AES
 from cryptography.hazmat.primitives.ciphers.modes import CTR
 from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.backends import default_backend
-from cryptography.utils import int_from_bytes, int_to_bytes
 
 from publication import publish
 
@@ -113,7 +112,7 @@ class StreamRandom(Random, object):
         octets = self._stream.read(octet_count)
         if len(octets) != octet_count:
             raise RuntimeError("out of entropy")
-        x = int_from_bytes(octets, byteorder="big")
+        x = int.from_bytes(octets, byteorder="big")
         return x >> (octet_count * 8 - k)
 
     def seed(self, a=None):
@@ -175,7 +174,7 @@ class CipherStream(object):
         """
         self._algorithm = algorithm
         self._octets_per_block = self._algorithm.block_size // 8
-        self._null_block = int_to_bytes(0, self._octets_per_block)
+        self._null_block = (0).to_bytes(self._octets_per_block)
         self.seek(0)
 
     def seek(self, n, whence=0):
@@ -191,7 +190,7 @@ class CipherStream(object):
         self._pos = closest_block * self._octets_per_block
         self._encryptor = Cipher(
             self._algorithm,
-            CTR(int_to_bytes(closest_block, self._octets_per_block)),
+            CTR(closest_block.to_bytes(self._octets_per_block)),
             backend=default_backend(),
         ).encryptor()
         self.read(beyond)
