@@ -51,7 +51,7 @@ from publication import publish
 
 __all__ = ["StreamRandom", "CipherStream", "stream_from_seed"]
 
-__version__ = "0.0.1"
+__version__ = "2025.10.15"
 
 
 def _bytes_for_bits(bits):
