@@ -13,8 +13,9 @@ dynamic = [
 authors = [
     {name = "Glyph", email = "glyph@twistedmatrix.com"},
 ]
-
-classifiers = ["License :: OSI Approved :: MIT License"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = [
     "cryptography",
     "publication",
