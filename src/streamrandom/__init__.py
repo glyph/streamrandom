@@ -163,18 +163,31 @@ class StreamRandom(Random, Generic[IOType]):
         """
         self._stream.seek(n * 7, 1)
 
-    def getstate(self) -> IOType:  # type:ignore[override]
+    def getstate(self) -> str:  # type:ignore[override]
         """
         Get the internal state necessary to serialize this object.
         """
-        return self._stream
+        if not (
+            isinstance(self._stream, CipherStream)
+            and isinstance(self._stream._algorithm, AES)
+        ):
+            raise NotImplementedError("Serialization only implemented for AES.")
+        me: StreamRandom[CipherStream[AES]] = self  # type:ignore[assignment]
+        return dumps(me)
 
-    def setstate(self, state: IOType) -> None:  # type:ignore[override]
+    def setstate(self, state: str) -> None:  # type:ignore[override]
         """
         Unserialize this object from the given state, previously serialized by
         C{getstate}.
         """
-        self._stream = state
+        if not (
+            isinstance(self._stream, CipherStream)
+            and isinstance(self._stream._algorithm, AES)
+        ):
+            raise NotImplementedError("Serialization only implemented for AES.")
+        me: StreamRandom[CipherStream[AES]] = self  # type:ignore[assignment]
+        me._stream = loads(state)._stream
+
 
     def uuid4(self) -> UUID:
         """
@@ -305,7 +318,7 @@ def dumps(random: StreamRandom[CipherStream[AES]]) -> str:
     Save the type of StreamRandom created by L{new} to a string for later
     restoration by L{loads}.
     """
-    stream = random.getstate()
+    stream = random._stream
     return StreamRandomState(stream._algorithm.key, stream.tell(), 1).tostring()
 
 
