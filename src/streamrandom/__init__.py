@@ -233,7 +233,7 @@ def stream_from_seed(seed: str | bytes, version: int = 1) -> CipherStream:
     """
     if version != 1:
         raise NotImplementedError("only one version exists")
-    if isinstance(bytes, seed):
+    if isinstance(seed, bytes):
         bytes_seed = seed
     else:
         normalized_seed = normalize("NFKD", seed)
