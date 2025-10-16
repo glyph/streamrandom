@@ -1,3 +1,4 @@
+# -*- test-case-name: test_streamrandom -*-
 """
 Sometimes you want randomness that is I{unpredictable}, but still
 I{repeatable}, and derived from a I{known}, I{human memorable} start point.
