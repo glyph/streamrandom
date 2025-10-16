@@ -171,7 +171,7 @@ class CipherStream(object):
         """
         self._algorithm = algorithm
         self._octets_per_block = self._algorithm.block_size // 8
-        self._null_block = (0).to_bytes(self._octets_per_block)
+        self._null_block = (0).to_bytes(self._octets_per_block, byteorder="big")
         self.seek(0)
 
     def seek(self, n, whence=0):
@@ -187,7 +187,7 @@ class CipherStream(object):
         self._pos = closest_block * self._octets_per_block
         self._encryptor = Cipher(
             self._algorithm,
-            CTR(closest_block.to_bytes(self._octets_per_block)),
+            CTR(closest_block.to_bytes(self._octets_per_block, byteorder="big")),
             backend=default_backend(),
         ).encryptor()
         self.read(beyond)
