@@ -30,10 +30,7 @@ However, the Python standard library's random number I{implementation} doesn't
 quite fit.  First, its PRNG algorithm (Mersenne Twister) is not quite
 unpredictable: if you can observe its outputs, you can eventually U{derive its
 inputs <https://en.wikipedia.org/wiki/Mersenne_Twister#Alternatives>}, which,
-in a game, might allow some players to cheat.  On Python 2.7 it isn't even
-repeatable, when used with human-memorable values; due to an U{unfortunate bug
-<https://bugs.python.org/issue27706>}, you have to convert your strings into
-integers yourself somehow before they're usable as stable seeds.
+in a game, might allow some players to cheat.
 
 MIT license, (C) glyph; if it breaks you can keep both halves.
 """
