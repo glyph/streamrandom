@@ -1,4 +1,4 @@
-# -*- test-case-name: test_streamrandom -*-
+# -*- test-case-name: streamrandom.test.test_streamrandom -*-
 """
 Sometimes you want randomness that is I{unpredictable}, but still
 I{repeatable}, and derived from a I{known}, I{human memorable} start point.
@@ -225,16 +225,19 @@ class CipherStream(object):
         return result
 
 
-def stream_from_seed(seed: str, version: int=1) -> CipherStream:
+def stream_from_seed(seed: str | bytes, version: int = 1) -> CipherStream:
     """
     Create a L{CipherStream}
 
-    @param seed: An arbitrary string.
+    @param seed: Some seed text, or some bytes.
     """
     if version != 1:
         raise NotImplementedError("only one version exists")
-    normalized_seed = normalize("NFKD", seed)
-    bytes_seed = normalized_seed.encode("utf-8")
+    if isinstance(bytes, seed):
+        bytes_seed = seed
+    else:
+        normalized_seed = normalize("NFKD", seed)
+        bytes_seed = normalized_seed.encode("utf-8")
     hasher = Hash(SHA256(), backend=default_backend())
     hasher.update(bytes_seed)
     return CipherStream(AES(hasher.finalize()[: AES.block_size // 8]))

@@ -1,4 +1,4 @@
-from streamrandom import stream_from_seed
+from .. import stream_from_seed
 
 from unittest import TestCase
 
