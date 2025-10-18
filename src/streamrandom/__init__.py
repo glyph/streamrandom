@@ -188,7 +188,6 @@ class StreamRandom(Random, Generic[IOType]):
         me: StreamRandom[CipherStream[AES]] = self  # type:ignore[assignment]
         me._stream = loads(state)._stream
 
-
     def uuid4(self) -> UUID:
         """
         Bonus method!  Generate UUID4s from a deterministic source of
