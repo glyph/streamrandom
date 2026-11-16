@@ -123,3 +123,6 @@ Testing is also another one.  You may want a truly random, unbiased ordering
 for your test suite, but also want to be able to reliably get that same
 ordering on a different machine for reproducing some issue.
 
+## AI Policy
+
+StreamRandom follows the [Twisted AI Policy](https://docs.twisted.org/en/latest/development/ai-policy.html). This means this project does not allow the inclusion of the outputs of generative AI tools.
